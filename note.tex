@@ -1,0 +1,49 @@
+\documentclass[cn,11pt,chinese]{elegantbook}
+\usepackage{float}
+\usepackage{listings}
+\lstset{
+ columns=fixed,       
+ numbers=left,                                        % 在左侧显示行号
+ numberstyle=\tiny\color{gray},                       % 设定行号格式
+ frame=none,                                          % 不显示背景边框
+ backgroundcolor=\color[RGB]{245,245,244},            % 设定背景颜色
+ keywordstyle=\color[RGB]{40,40,255},                 % 设定关键字颜色
+ numberstyle=\footnotesize\color{darkgray},           
+ commentstyle=\it\color[RGB]{0,96,96},                % 设置代码注释的格式
+ stringstyle=\rmfamily\slshape\color[RGB]{128,0,0},   % 设置字符串格式
+ showstringspaces=false,                              % 不显示字符串中的空格
+%  language=php,                                        % 设置语言
+}
+% 标题信息
+\title{CTF 学习笔记}
+\author{shijy16}
+\date{\today}
+
+\cover{cover.png}
+
+\begin{document}
+
+\maketitle
+
+\chapter*{特别声明}
+\markboth{Introduction}{前言}
+
+本册是CTF学习笔记，按照\href{https://book.nu1l.com/}{从0到1：CTFer成长之路}的章节一步一步学习，会记录一些笔记。
+
+供初学CTF的同学们参考交流。
+
+\vskip 1.5cm
+
+\begin{flushright}
+shijy16
+\end{flushright}
+
+
+\tableofcontents
+\setcounter{page}{1}
+\pagenumbering{arabic}
+
+\include{1-web_junior/web_junior}
+
+
+\end{document}

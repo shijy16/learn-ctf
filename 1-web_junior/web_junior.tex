@@ -1,0 +1,84 @@
+\chapter{web入门}
+web类题目是CTF比赛的主要题目，和二进制、逆向题目相比，不需要掌握底层知识。本章介绍web题目最常见的三类漏洞。
+
+
+\section{信息收集}
+信息搜集涵盖的面很广泛，包含备份文件、目录信息、Banner信息等，信息搜集主要依赖经验。
+
+
+\subsection{敏感目录泄露}
+通过敏感目录泄露通常可以获取网站的源代码和敏感的URL地址。
+\subsubsection*{git泄露}
+
+\paragraph*{常规git泄露}
+直接用现成工具或脚本获取网站源码或flag。如：在确保目标URL含有.git的情况下，可以直接使用\href{https://github.com/denny0223/scrabble}{scrabble}来获取网站源码。命令如下：
+\begin{lstlisting}
+    ./scrabble http://example.com/
+\end{lstlisting}
+
+\paragraph*{git回滚}
+利用scrabble获取网站源码后，部分情况下，flag会在之前的commit中被删除/修改，这时需要回滚。
+\begin{lstlisting}
+    git reset --hard HEAD^ #回滚到上一版本
+    git log -stat #查看每个commit修改了什么
+    git diff HEAD commit-id #查看当前版本与目标版本的区别
+\end{lstlisting}
+
+\paragraph*{git分支}
+有时候flag不在默认分支中，需要切换其他分支，但大部分现成git泄露工具不支持分支，还原其他分支代码需要手工进行文件提取。功能较强的工具有\href{https://github.com/WangYihang/GitHacker}{GitHacker}，用法：
+\begin{lstlisting}
+    python GitHacker.py [Website]
+\end{lstlisting}
+而后使用$git\ reflog$命令查看checkout记录，可以发现其他分支，然后修改/复用GitHacker代码来自动恢复分支。
+
+\paragraph*{git泄露其他利用}
+泄露的git中可能还有其他有用信息，比如说.git/config文件夹里面可能有access\_tocken信息，用来访问用户其他仓库。
+
+\subsubsection*{SVN泄露}
+SVN是源代码版本管理软件，管理员可能疏忽将SVN隐藏文件夹暴露在外。可以利用.svn/entries或wc.db获取服务器源码。
+
+工具：https://github.com/kost/dvcs-ripper/,Seay-svn(windows)。
+
+
+\subsubsection*{HG泄露}
+HG会创建.hg隐藏文件记录代码、分支信息。
+
+工具：https://github.com/kost/dvcs-ripper/
+
+\subsubsection*{总结经验}
+
+CTF线上赛往往有重定向问题，如访问.git后重定向，再访问.git/config后有内容返回，就有.git泄露问题。
+
+目录扫描工具：https://github.com/maurosoria/dirsearch
+
+\subsection{敏感备份文件}
+
+\subsubsection*{gedit备份文件}
+gedit：文件保存后会有一个后缀为'$\sim$'的文件。如$flag\sim$。
+
+\subsubsection*{vim备份文件}
+vim崩溃时会有一个$.swp$文件，可以用$vim\ -r$命令恢复。
+
+\subsubsection*{常规文件}
+\begin{itemize}
+    \item robots.txt:CMS版本信息
+    \item readme
+    \item www.zip/rar/tar.gz: 常常是网站的备份源码
+\end{itemize}
+
+
+\subsection{Banner识别}
+Banner:网站服务器对外显示的一些基础信息，如网站使用的框架等。可以据此尝试框架历史漏洞。
+
+\subsubsection*{自行搜集指纹库}
+github上有CMS指纹库，也有扫描器。
+
+\subsubsection*{使用已有工具}
+Wappalyzer工具：python工具，使用pip安装即可。
+
+\subsubsection*{总结经验}
+随意输入一些URL有时可以通过404或302跳转页面发现一些信息。
+
+
+\section{SQL注入}
+\section{任意文件读取}
