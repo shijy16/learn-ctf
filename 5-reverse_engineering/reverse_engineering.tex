@@ -1,0 +1,57 @@
+\chapter{逆向工程}
+\section{逆向工程基础}
+主要讲了一些汇编、工具的基本常识，略过。
+
+
+\section{静态分析}
+\subsection{IDA使用入门}
+讲IDA怎么用。
+数据类型快捷键:
+\begin{itemize}
+    \item U: 取消一个地方已有数据类型定义。
+    \item D: 把一个地方变成数据，一直按会修改数据的长度。
+    \item C: 让一个位置变成指令。
+    \item A: 让一个位置为起点变成以$\backslash 0$结尾的ASCII字符串。
+    \item *: 将一个位置定义为数组。
+    \item O: 将一个位置定义为地址偏移。
+\end{itemize}
+
+函数操作快捷键:
+\begin{itemize}
+    \item 删除函数: 选中函数后DELETE。
+    \item 定义函数: 选中行后P。
+    \item 修改函数参数：函数窗口中选中函数Ctrl+E，反汇编窗口选中函数内部Alt+E。
+\end{itemize}
+
+导航操作快捷键：
+\begin{itemize}
+    \item 后退到上一位置：Esc。
+    \item 前进到下一位置：Ctrl+Enter。
+    \item 跳转到一个地址：G，然后输入地址/名称。
+    \item 跳转到某一区段：Ctrl+S。
+\end{itemize}
+
+其他：IDA Python、字符串子窗口、十六进制子窗口。
+
+\subsection{HexRays反编译器入门}
+\begin{itemize}
+    \item 生成伪代码:F5。
+    \item Collapse declaration: 折叠函数。
+    \item 修改标识符：在标识符上按N。
+    \item 切换常量显示格式：右键。
+    \item 修改标识符类型：Y。
+    \item 添加结构体类型：Insert或右键，而后IDA会自动识别该类型。也可以添加头文件。
+    \item 代码跳过：选中后右键，选择fill\ with\ nops。(需要装\href{https://github.com/L4ys/LazyIDA}{LazyIDA插件})
+\end{itemize}
+
+\subsection{IDA和HexRays进阶}
+\begin{itemize}
+    \item main函数查找: 找\_\_lib\_start\_main和start函数。
+    \item FLIRT签名: 函数列表中底色为青色的函数表示因为签名问题识别失败，Shift+F5打开Signature列表，然后按Insert，自动新增签名库。
+    \item HesRays函数分析失败:
+    \begin{itemize}
+        \item call\ analysis\ failed: 找函数调用参数时出错，需要手动修改函数的原型声明,如从'int\ \_\_thiscall'改为'int\ \_\_cdecl'。
+        \item sp-analysis\ failed: 优化等级较高时，编译器省略了ebp使用，转而使用rsp引用局部变量，HexRays在跟踪rsp时出错。一般是由参数个数或调用约定出错导致IDA对栈指针变化量计算错误，可以在Option-General中打开Stackpointer分析错误。
+        \item 指令分析错误: 有时候代码段中会有一些地方插入了不会到达的混淆，导致之后的指令解析错误，需要定位到错误点把这些地方用nop填充。
+    \end{itemize}  
+\end{itemize}

