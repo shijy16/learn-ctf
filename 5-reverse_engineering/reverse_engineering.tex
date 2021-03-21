@@ -55,3 +55,64 @@
         \item 指令分析错误: 有时候代码段中会有一些地方插入了不会到达的混淆，导致之后的指令解析错误，需要定位到错误点把这些地方用nop填充。
     \end{itemize}  
 \end{itemize}
+
+\section{动态调试和分析}
+\subsection{OllyDBG和x64DBG调试}
+都是windows平台下的调试器。
+\subsubsection*{快捷键}
+\begin{itemize}
+    \item Ctrl+G: 跳转。
+    \item F2: 设置/删除断点。
+    \item F7: 单步步入。
+    \item F8: 单步步过。
+    \item F4: 运行至光标。
+    \item F9: 运行。
+    \item 读写断点：x64DBG中，"断点->硬件断点"或"读取或写入->选择长度"。
+\end{itemize}
+
+\subsubsection*{简单脱壳}
+“壳”是一种特殊程序，在运行时对另一个程序进行变换，重新生成可执行文件。主要有加密壳和压缩壳。
+
+UPX壳使用广泛，历史悠久，适用多种平台和架构。
+
+脱壳方法：
+\begin{itemize}
+    \item 静态：UPX本身提供脱壳器，命令行参数-d即可，但有时因为版本不同会失败，可以用UPXShell方便地切换。
+    \item 动态：系统预先加载目标程序时，会在栈和寄存器填充数据。壳程序运行前需要保存这些数据，而后要进行恢复。所以通常壳程序开头是pushad指令，这时候只需要在栈顶下硬件读取断点，就可以找到壳程序退出点，然后在退出点使插件进行脱壳。
+    \begin{itemize}
+        \item OllyDBG: 插件->OllyDump->脱壳正在调试的进程，选中获取EIP作为OEP。
+        \item x64DBG: 插件->Scylla,IAT\ Autosearch, Get\ Imports，选中imports中有红叉的删除，单击Dump将内存转为可执行文件，单击Fix\ Dump修复导入表，完成修复后在IDA中加载。
+    \end{itemize}
+\end{itemize}
+生成的程序能在IDA中分析，但无法运行，主要因为重定位信息没有修复。可以用CFF\ Explorer工具修改Nt\ Header的"Charatristics"，勾选"Relocation info stripped from file"，就可以阻止系统对该程序ASLR。
+
+\subsection{GDB调试}
+gdb命令：
+\begin{itemize}
+    \item r: 运行。
+    \item c: 继续。
+    \item si: 单步步入。
+    \item ni: 单步步过。
+    \item finish: 执行到当前函数返回。
+    \item x/[len][format] 0x123: 查看内存。
+    \item p: 输出一个表达式的值。
+    \item b: 断点，"b\ *[func/addr]"。
+    \item info b/info bl: 列出断点。
+    \item del: 删除断点，"del\ id"。
+    \item clear: 删除指定位置的断点。"clear *[func/addr]"。
+    \item set: 修改数据，"set\ $\$$reg=value"，"set\ {type}addr=value"。
+\end{itemize}
+
+\paragraph*{IDA和pwngdb} pwndbg可以远程使用IDA功能进行调试。
+\begin{itemize}
+    \item 在IDA中运行pwndbg中的ida\_script.py，IDA会监听本地31377端口。如果在虚拟机中使用pwndbg，在host使用IDA，需要把脚本中127.0.0.1改为0.0.0.0来允许虚拟机连接。
+    \item 在gdb中执行config idarpc-host "hostIP"，重启gdb即可生效。
+\end{itemize}
+完成后，pwndbg中可以使用ida的函数名、显示伪代码。如:"b *main"，使用$\$$ida("xxx")可以获得名称xxx重定位后的地址。
+
+\subsection{IDA调试器}
+IDA也有调试后端，可以调windows32/64bit程序，也可以远程调linux程序。
+
+本地调试器:Local\ Windows\ Debugger，快捷键与x64DBG相同，可以在伪代码上下断点调试，也可以在Debugger->Debugger\ windows->Locals中看局部变量。
+
+远程调试器:IDA的远程调试服务器位于dbgsrv目录，在远程主机上运行后在本地选取连接即可。

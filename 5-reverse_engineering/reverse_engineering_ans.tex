@@ -91,7 +91,22 @@ if __name__ == '__main__':
 \end{lstlisting}
 获得结果:chaf\{Hdi\_cdiaj\_fim\_aacbmm!\}，输入目标程序后得到输出:'Congratulations!'。解题完成。
 
+\section{动态分析}
 
 \subsection{2-simpleCrackme\_O3}
 是上一题的经过编译器优化的版本，仅目标字符串解析出来有问题，需要手动设置为char[28]数组。
 
+\subsection{3-upx}
+脱壳题。原程序用ida打开只有一个start函数，生成的伪代码也只有这个函数的内容。
+
+用x64DBG一打开是ntdll里面的代码，按F9运行，到程序入口点后会自动停下，发现入口点就是一个pushad，那么在pushad后下一个硬件读取断点(右键右边寄存器区域，设置硬件断点于ESP)。
+
+继续运行，运行到popad指令后断点被触发~\ref{fig:5_pic1}，此时删除断点。发现popad之后在循环清空栈上方区域，之后跳转到了一个比较远的地址。
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{5-reverse_engineering/pic/1.jpg}
+    \caption{popad}
+    \label{fig:5_pic1}
+\end{figure}
+
+跟进该地址，发现看起来像一个正常函数，然后按步骤导出脱壳程序即可。这个脱壳程序已经可以用ida打开并解析出来了，但是还不能运行。需要禁用ASLR，用CFF Explorer修改修改Nt Header的"Charatristics"，勾选"Relocation info stripped from file",最后发现这个方法无效，直接修改平台给的dump程序也不能运行，不知道是哪里有问题。
