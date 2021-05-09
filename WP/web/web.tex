@@ -1,0 +1,45 @@
+\chapter{web}
+\section{CTFHub-信息泄露-目录遍历}
+进入网页发现是一个多级目录，目录类似一个迷宫，目录结构如下:
+\begin{lstlisting}
+-1
+	-1
+	-2
+	-3
+	-4
+-2
+	-1
+	-2
+	-3
+	-4
+-3
+	...
+-4
+	...
+\end{lstlisting}
+
+flag藏在其中某一个目录下，简单写一个字典:
+\begin{lstlisting}
+1
+2
+3
+4
+flag.txt
+flag
+\end{lstlisting}
+
+然后在kali中用dirb遍历目录:
+\begin{lstlisting}
+dirb http://challenge-130ea20b072011dd.sandbox.ctfhub.com:10080/flag_in_here words.txt
+\end{lstlisting}
+
+最后找到:
+
+\begin{lstlisting}
+---- Entering directory: http://challenge-130ea20b072011dd.sandbox.ctfhub.com:10080/flag_in_here/4/4/ ----
+(!) WARNING: Directory IS LISTABLE. No need to scan it.
+    (Use mode '-w' if you want to scan it anyway)
+                    _here/4/4/flag.txt
+\end{lstlisting}
+
+打开即可获得flag。
