@@ -331,3 +331,80 @@ python sqlmap.py -r "post.txt" -p [ArgName] --[option]
 \end{lstlisting}
 
 \section{任意文件读取}
+文件读取漏洞是指，攻击者通过手段读取服务器上不允许读取的文件。文件漏洞广泛存在的原因主要是:
+\begin{itemize}
+    \item web开发中轮子用得太多，开发者没有仔细了解应用框架、中间件的安全机制就直接使用。
+    \item Web Server自身的问题或不安全的服务器配置。Web Server运行基本机制是从服务器读取代码和资源文件给解释器或CGI程序执行，然后把结果反馈给用户，中间涉及众多文件操作都可能被攻击者干预。
+\end{itemize}
+
+\subsection{文件读取漏洞常见触发点}
+\subsubsection*{Web语言}
+\paragraph*{PHP}
+PHP中有关读文件的函数包括但不限于:file\_get\_contents()、file()、fopen()、fgets()、fread()等，与文件包含相关函数include()、require()、include\_once()、require\_once()等，以及通过PHP读文件的执行系统命令system()、exec()等。这些函数常见且危险。
+由于PHP开发技术越来越倾向于单入口、多层级、多通道模式，其中涉及PHP文件之间的调用密集且频繁。一个高复用性的文件调用函数需要将动态信息传入，程序入口处如果没有对这些动态输入数据加以控制，攻击者就很容易注入恶意路径，实现任意文件读取甚至任意文件包含。
+除PHP标准库函数外，PHP扩展也包含很多可以读取文件的函数，例如php-curl扩展、XML模块造成的XXE等。
+\begin{itemize}
+    \item Wrapper:PHP向用户提供的指定打开文件的方式不是路径，而是文件流，可以理解为\textbf{PHP提供的协议}，如通过'http://host:port/xxx'就通过HTTP请求服务器上对应的文件，PHP中还有很多功能不同的类似协议，统称为\textbf{Wrapper}。其中最具特色的协议是'php://协议'，PHP还提供了接口供开发者编写自定义的:\\'wrapper(stream\_wrapper\_register)'。
+    \item Filter: Filter的作用是对目前的Wrapper进行处理，如将文件流内容变为全大写。这给我们进行任意文件读取带来了便利。
+\end{itemize}
+PHP文件包含问题中，可能遇到三种情况:
+\begin{itemize}
+    \item 文件路径前面可控，后面不可控:较低版本的PHP和容器版本中使用'$\backslash x00$'(URL编码为'\%00')截断。存在文件上传功能时尝试利用zip或phar协议进行文件包含进而执行PHP代码。
+    \item 文件路径后面可控，前面不可控:可以通过'../'进行目录穿越来直接读取文件，但是这种情况用不了Wrapper。如果服务端利用include等文件包含类函数，我们就无法读取PHP文件中的PHP代码。
+    \item 文件路径中间可控:和第一种类似，但无法进行文件包含。
+\end{itemize}
+
+\paragraph*{Python}
+Python的Web应用倾向于通过自身模块启动服务，搭配中间件、代理服务将web应用呈现给用户。用户和web应用交互过程保安对服务器资源文件的请求，因此容易出现非预期的读取文件。漏洞经常出现在框架请求静态资源文件部分。
+如os.path.join('/a','/b')结果为'/b'，开发者往往只会过滤'.'。python主要漏洞点:
+\begin{itemize}
+    \item 滥用open函数、模板的不当渲染导致任意文件读取。如不安全的解压模块可能导致目录穿越，覆盖已有文件。
+    \item 攻击者构造软连接放入压缩包，解压后的内容指向服务器响应文件，通过访问软连接访问服务器相应文件。
+    \item python的模板注入、反序列化等漏洞都可能导致任意文件读取。
+\end{itemize}
+
+\paragraph*{Java}
+除了Java本身FileInputStream、XXE以外，Java一些模块支持'file://'协议，这里任意文件读取出现得最多。
+
+\paragraph*{Ruby}
+Ruby的任意文件读取漏洞通常与Rails框架相关。
+\paragraph*{Node}
+Node.js的express模块曾存在任意文件读取漏洞。
+
+\subsubsection*{中间件/服务器相关}
+\paragraph*{Nginx错误配置}
+如:
+\begin{lstlisting}
+location /static {
+    alias /home/myapp/static/;
+}
+\end{lstlisting}
+攻击者请求路径为'/static../'时，就会解析为'/home/myapp/static/../'，漏洞成因是location最后没有用'/'限制，如果是'/static/'就不存在这个漏洞。
+
+\paragraph*{数据库}
+主要是load\_file函数进行文件读取，有一些严格的限制:
+\begin{itemize}
+    \item 需要数据库配置FILE权限，root用户一般都有。
+    \item 执行load\_file函数的mysql用户对目标文件有可读权限。
+    \item 主流Linux系统需要Aparmor配置了目录白名单。
+\end{itemize}
+还有通过直接执行整体SQL语句进行文件读取的方法，'load data infile'，需要FILE权限，且很少有机会可以执行整条SQL语句。
+
+\paragraph*{软链接}
+用'ln -s'命令在本地创建软链接，传到服务器，向服务器请求这个软链接时，实际请求的是它指向的文件。
+
+\paragraph*{其他}
+\begin{itemize}
+    \item FFmpeg曾曝出任意文件读取漏洞。
+    \item Dokcer-API可以控制Docker行为，一般通过Unix Socket或HTTP通信，可以通过SSRF漏洞进行Unix Socket通信时，就可以通过操纵Dokcer-API把本地文件载入Docker新容器进行读取(利用ADD/COPY操作)。
+\end{itemize}
+
+\subsubsection*{客户端相关}
+\paragraph*{浏览器/Flash\ XSS}
+Javascript中可以使用File协议、结合浏览器同源策略漏洞读取客户本地文件。
+
+\paragraph*{MarkDown语法解析器XSS}
+Markdown解析器也有解析JavaScript的能力，且大多没有对本地文件读取操作进行限制。
+
+\subsection{文件读取漏洞常见读取路径}
+主要是flag加各种后缀名和linux中'/etc'目录下的各种配置文件，'/proc'目录，其他配置目录等。做题时再进行查阅或者用工具暴力遍历。
